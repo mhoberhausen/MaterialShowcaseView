@@ -3,7 +3,7 @@ package uk.co.deanwild.materialshowcaseview;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.Bitmap;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -30,6 +30,7 @@ import java.util.List;
 
 import uk.co.deanwild.materialshowcaseview.shape.CircleShape;
 import uk.co.deanwild.materialshowcaseview.shape.NoShape;
+import uk.co.deanwild.materialshowcaseview.shape.OvalShape;
 import uk.co.deanwild.materialshowcaseview.shape.RectangleShape;
 import uk.co.deanwild.materialshowcaseview.shape.Shape;
 import uk.co.deanwild.materialshowcaseview.target.Target;
@@ -41,11 +42,8 @@ import uk.co.deanwild.materialshowcaseview.target.ViewTarget;
  */
 public class MaterialShowcaseView extends FrameLayout implements View.OnTouchListener, View.OnClickListener {
 
-    private int mOldHeight;
-    private int mOldWidth;
-    private Bitmap mBitmap;// = new WeakReference<>(null);
-    private Canvas mCanvas;
     private Paint mEraser;
+    private Paint mOutline;
     private Target mTarget;
     private Shape mShape;
     private int mXPosition;
@@ -60,7 +58,10 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
     private int mGravity;
     private int mContentBottomMargin;
     private int mContentTopMargin;
+    private int mContentRightMargin;
+    private int mContentLeftMargin;
     private boolean mDismissOnTouch = false;
+    private boolean mDismissOnTarget = false;
     private boolean mShouldRender = false; // flag to decide when we should actually render
     private boolean mRenderOverNav = false;
     private int mMaskColour;
@@ -69,7 +70,6 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
     private long mFadeDurationInMillis = ShowcaseConfig.DEFAULT_FADE_TIME;
     private Handler mHandler;
     private long mDelayInMillis = ShowcaseConfig.DEFAULT_DELAY;
-    private int mBottomMargin = 0;
     private boolean mSingleUse = false; // should display only once
     private PrefsManager mPrefsManager; // used to store state doe single use mode
     List<IShowcaseListener> mListeners; // external listeners who want to observe when we show and dismiss
@@ -80,27 +80,27 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
 
     public MaterialShowcaseView(Context context) {
         super(context);
-        init(context);
+        init();
     }
 
     public MaterialShowcaseView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        init(context);
+        init();
     }
 
     public MaterialShowcaseView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init(context);
+        init();
     }
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     public MaterialShowcaseView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
-        init(context);
+        init();
     }
 
 
-    private void init(Context context) {
+    private void init() {
         setWillNotDraw(false);
 
         // create our animation factory
@@ -118,6 +118,16 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         mMaskColour = Color.parseColor(ShowcaseConfig.DEFAULT_MASK_COLOUR);
         setVisibility(INVISIBLE);
 
+        // prepare eraser paint
+        mEraser = new Paint();
+        mEraser.setColor(0xFFFFFFFF);
+        mEraser.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+        mEraser.setFlags(Paint.ANTI_ALIAS_FLAG);
+
+        mOutline = new Paint();
+        mOutline.setColor(0xFFFFFFFF);
+        mOutline.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.ADD));
+        mOutline.setFlags(Paint.ANTI_ALIAS_FLAG);
 
         View contentView = LayoutInflater.from(getContext()).inflate(R.layout.showcase_content, this, true);
         mContentBox = contentView.findViewById(R.id.content_box);
@@ -125,6 +135,8 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         mContentTextView = (TextView) contentView.findViewById(R.id.tv_content);
         mDismissButton = (TextView) contentView.findViewById(R.id.tv_dismiss);
         mDismissButton.setOnClickListener(this);
+
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
     }
 
 
@@ -142,46 +154,15 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         // don't bother drawing if we're not ready
         if (!mShouldRender) return;
 
-        // get current dimensions
-        final int width = getMeasuredWidth();
-        final int height = getMeasuredHeight();
-
-		// don't bother drawing if there is nothing to draw on
-		if(width <= 0 || height <= 0) return;
-
-        // build a new canvas if needed i.e first pass or new dimensions
-        if (mBitmap == null || mCanvas == null || mOldHeight != height || mOldWidth != width) {
-
-            if (mBitmap != null) mBitmap.recycle();
-
-            mBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-
-            mCanvas = new Canvas(mBitmap);
-        }
-
-        // save our 'old' dimensions
-        mOldWidth = width;
-        mOldHeight = height;
-
         // clear canvas
-        mCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
 
         // draw solid background
-        mCanvas.drawColor(mMaskColour);
-
-        // Prepare eraser Paint if needed
-        if (mEraser == null) {
-            mEraser = new Paint();
-            mEraser.setColor(0xFFFFFFFF);
-            mEraser.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
-            mEraser.setFlags(Paint.ANTI_ALIAS_FLAG);
-        }
+        canvas.drawColor(mMaskColour);
 
         // draw (erase) shape
-        mShape.draw(mCanvas, mEraser, mXPosition, mYPosition, mShapePadding);
-
-        // Draw the bitmap on our views  canvas.
-        canvas.drawBitmap(mBitmap, 0, 0, null);
+        mShape.draw(canvas, mOutline, mXPosition, mYPosition, mShapePadding + 2);
+        mShape.draw(canvas, mEraser, mXPosition, mYPosition, mShapePadding);
     }
 
     @Override
@@ -207,8 +188,22 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         if (mDismissOnTouch) {
             hide();
         }
-        if(mTargetTouchable && mTarget.getBounds().contains((int)event.getX(), (int)event.getY())){
-            if(mDismissOnTargetTouch){
+
+        if (mDismissOnTarget) {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    Rect bound = mTarget.getBounds();
+                    float x = event.getX();
+                    float y = event.getY();
+                    if (x >= bound.left && x <= bound.right && y >= bound.top && y <= bound.bottom) {
+                        hide();
+                    }
+                    break;
+            }
+        }
+
+        if (mTargetTouchable && mTarget.getBounds().contains((int) event.getX(), (int) event.getY())) {
+            if (mDismissOnTargetTouch) {
                 hide();
             }
             return false;
@@ -219,11 +214,11 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
 
     private void notifyOnDisplayed() {
 
-		if(mListeners != null){
-			for (IShowcaseListener listener : mListeners) {
-				listener.onShowcaseDisplayed(this);
-			}
-		}
+        if (mListeners != null) {
+            for (IShowcaseListener listener : mListeners) {
+                listener.onShowcaseDisplayed(this);
+            }
+        }
     }
 
     private void notifyOnDismissed() {
@@ -273,11 +268,11 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
              * If we're on lollipop then make sure we don't draw over the nav bar
              */
             if (!mRenderOverNav && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mBottomMargin = getSoftButtonsBarSizePort((Activity) getContext());
+                int bottomMargin = getSoftButtonsBarSizePort((Activity) getContext());
                 FrameLayout.LayoutParams contentLP = (LayoutParams) getLayoutParams();
 
-                if (contentLP != null && contentLP.bottomMargin != mBottomMargin)
-                    contentLP.bottomMargin = mBottomMargin;
+                if (contentLP != null && contentLP.bottomMargin != bottomMargin)
+                    contentLP.bottomMargin = bottomMargin;
             }
 
             // apply the target position
@@ -285,10 +280,7 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
             Rect targetBounds = mTarget.getBounds();
             setPosition(targetPoint);
 
-            // now figure out whether to put content above or below it
-            int height = getMeasuredHeight();
-            int midPoint = height / 2;
-            int yPos = targetPoint.y;
+
 
             int radius = Math.max(targetBounds.height(), targetBounds.width()) / 2;
             if (mShape != null) {
@@ -296,16 +288,43 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
                 radius = mShape.getHeight() / 2;
             }
 
-            if (yPos > midPoint) {
-                // target is in lower half of screen, we'll sit above it
-                mContentTopMargin = 0;
-                mContentBottomMargin = (height - yPos) + radius + mShapePadding;
-                mGravity = Gravity.BOTTOM;
-            } else {
-                // target is in upper half of screen, we'll sit below it
-                mContentTopMargin = yPos + radius + mShapePadding;
-                mContentBottomMargin = 0;
-                mGravity = Gravity.TOP;
+
+
+            if(getContext().getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE){
+                // now figure out whether to put content above or below it
+                int width = getMeasuredWidth();
+                int midPoint = width / 2;
+                int xPos = targetPoint.x;
+
+                if (xPos > midPoint) {
+                    // target is in right half of screen, we'll sit above it
+                    mContentLeftMargin = 0;
+                    mContentTopMargin = 0;
+                    mContentRightMargin = (width - xPos) + radius + mShapePadding;
+                    mGravity = Gravity.START | Gravity.TOP;
+                } else {
+                    // target is in left half of screen, we'll sit below it
+                    mContentLeftMargin = xPos + radius + mShapePadding;
+                    mContentRightMargin = 0;
+                    mContentTopMargin = 0;
+                    mGravity = Gravity.START | Gravity.TOP;
+                }
+            }else{
+                // now figure out whether to put content above or below it
+                int height = getMeasuredHeight();
+                int midPoint = height / 2;
+                int yPos = targetPoint.y;
+                if (yPos > midPoint) {
+                    // target is in lower half of screen, we'll sit above it
+                    mContentTopMargin = 0;
+                    mContentBottomMargin = (height - yPos) + radius + mShapePadding;
+                    mGravity = Gravity.BOTTOM;
+                } else {
+                    // target is in upper half of screen, we'll sit below it
+                    mContentTopMargin = yPos + radius + mShapePadding;
+                    mContentBottomMargin = 0;
+                    mGravity = Gravity.TOP;
+                }
             }
         }
 
@@ -326,6 +345,16 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
 
             if (contentLP.topMargin != mContentTopMargin) {
                 contentLP.topMargin = mContentTopMargin;
+                layoutParamsChanged = true;
+            }
+
+            if (contentLP.rightMargin != mContentRightMargin) {
+                contentLP.rightMargin = mContentRightMargin;
+                layoutParamsChanged = true;
+            }
+
+            if (contentLP.leftMargin != mContentLeftMargin) {
+                contentLP.leftMargin = mContentLeftMargin;
                 layoutParamsChanged = true;
             }
 
@@ -356,8 +385,7 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
     }
 
     private void setTitleText(CharSequence contentText) {
-        if (mTitleTextView != null && !contentText.equals("")) {
-            mContentTextView.setAlpha(0.5F);
+        if (mTitleTextView != null) {
             mTitleTextView.setText(contentText);
         }
     }
@@ -402,6 +430,10 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         mDismissOnTouch = dismissOnTouch;
     }
 
+    private void setDismissOnTarget(boolean dissmissOnTarget) {
+        mDismissOnTarget = dissmissOnTarget;
+    }
+
     private void setShouldRender(boolean shouldRender) {
         mShouldRender = shouldRender;
     }
@@ -418,25 +450,25 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         mFadeDurationInMillis = fadeDurationInMillis;
     }
 
-    private void setTargetTouchable(boolean targetTouchable){
+    private void setTargetTouchable(boolean targetTouchable) {
         mTargetTouchable = targetTouchable;
     }
 
-    private void setDismissOnTargetTouch(boolean dismissOnTargetTouch){
+    private void setDismissOnTargetTouch(boolean dismissOnTargetTouch) {
         mDismissOnTargetTouch = dismissOnTargetTouch;
     }
 
     public void addShowcaseListener(IShowcaseListener showcaseListener) {
 
-		if(mListeners != null)
-			mListeners.add(showcaseListener);
+        if (mListeners != null)
+            mListeners.add(showcaseListener);
     }
 
     public void removeShowcaseListener(MaterialShowcaseSequence showcaseListener) {
 
-		if ((mListeners != null) && mListeners.contains(showcaseListener)) {
-			mListeners.remove(showcaseListener);
-		}
+        if ((mListeners != null) && mListeners.contains(showcaseListener)) {
+            mListeners.remove(showcaseListener);
+        }
     }
 
     void setDetachedListener(IDetachedListener detachedListener) {
@@ -474,6 +506,10 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         }
     }
 
+    private void setCustomView(int layoutId) {
+        inflate(getContext(), layoutId, this);
+    }
+
     public boolean hasFired() {
         return mPrefsManager.hasFired();
     }
@@ -498,6 +534,7 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
         private static final int CIRCLE_SHAPE = 0;
         private static final int RECTANGLE_SHAPE = 1;
         private static final int NO_SHAPE = 2;
+        private static final int OVAL_SHAPE = 3;
 
         private boolean fullWidth = false;
         private int shapeType = CIRCLE_SHAPE;
@@ -564,26 +601,31 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
 
         /**
          * Set whether or not the target view can be touched while the showcase is visible.
-         *
+         * <p/>
          * False by default.
          */
-        public Builder setTargetTouchable(boolean targetTouchable){
+        public Builder setTargetTouchable(boolean targetTouchable) {
             showcaseView.setTargetTouchable(targetTouchable);
             return this;
         }
 
         /**
          * Set whether or not the showcase should dismiss when the target is touched.
-         *
+         * <p/>
          * True by default.
          */
-        public Builder setDismissOnTargetTouch(boolean dismissOnTargetTouch){
+        public Builder setDismissOnTargetTouch(boolean dismissOnTargetTouch) {
             showcaseView.setDismissOnTargetTouch(dismissOnTargetTouch);
             return this;
         }
 
         public Builder setDismissOnTouch(boolean dismissOnTouch) {
             showcaseView.setDismissOnTouch(dismissOnTouch);
+            return this;
+        }
+
+        public Builder setDismissOnTarget(boolean dismissOnTarget) {
+            showcaseView.setDismissOnTarget(dismissOnTarget);
             return this;
         }
 
@@ -637,6 +679,11 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
             return this;
         }
 
+        public Builder withOvalShape() {
+            shapeType = OVAL_SHAPE;
+            return this;
+        }
+
         public Builder withoutShape() {
             shapeType = NO_SHAPE;
             return this;
@@ -663,6 +710,11 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
             return this;
         }
 
+        public Builder setCustomView(int layoutId) {
+            showcaseView.setCustomView(layoutId);
+            return this;
+        }
+
         public MaterialShowcaseView build() {
             if (showcaseView.mShape == null) {
                 switch (shapeType) {
@@ -676,6 +728,10 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
                     }
                     case NO_SHAPE: {
                         showcaseView.setShape(new NoShape());
+                        break;
+                    }
+                    case OVAL_SHAPE: {
+                        showcaseView.setShape(new OvalShape(showcaseView.mTarget));
                         break;
                     }
                     default:
@@ -703,17 +759,17 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
             ((ViewGroup) getParent()).removeView(this);
         }
 
-        if (mBitmap != null) {
-            mBitmap.recycle();
-            mBitmap = null;
-        }
-
         mEraser = null;
+        mOutline = null;
         mAnimationFactory = null;
-        mCanvas = null;
         mHandler = null;
 
-        getViewTreeObserver().removeGlobalOnLayoutListener(mLayoutListener);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) {
+            getViewTreeObserver().removeGlobalOnLayoutListener(mLayoutListener);
+        } else {
+            getViewTreeObserver().removeOnGlobalLayoutListener(mLayoutListener);
+        }
+
         mLayoutListener = null;
 
         if (mPrefsManager != null)

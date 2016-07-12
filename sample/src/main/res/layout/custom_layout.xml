@@ -1,0 +1,18 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:tools="http://schemas.android.com/tools"
+                android:layout_width="match_parent"
+                android:orientation="vertical"
+                android:layout_height="match_parent"
+                tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/btn_simple_example"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:text="X"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="20dp"
+        android:layout_marginRight="20dp"/>
+
+</RelativeLayout>
