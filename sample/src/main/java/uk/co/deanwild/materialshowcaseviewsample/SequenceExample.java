@@ -79,7 +79,7 @@ public class SequenceExample extends AppCompatActivity implements View.OnClickLi
                         .setTarget(mButtonTwo)
                         .setDismissText("GOT IT")
                         .setContentText("This is button two")
-                        .withRectangleShape(true)
+                        .withRectangleShape(false)
                         .build()
         );
 
@@ -88,7 +88,7 @@ public class SequenceExample extends AppCompatActivity implements View.OnClickLi
                         .setTarget(mButtonThree)
                         .setDismissText("GOT IT")
                         .setContentText("This is button three")
-                        .withRectangleShape()
+                        .withRectangleShape(false)
                         .build()
         );
 

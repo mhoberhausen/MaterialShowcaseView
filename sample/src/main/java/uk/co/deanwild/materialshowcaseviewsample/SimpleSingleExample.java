@@ -49,10 +49,10 @@ public class SimpleSingleExample extends AppCompatActivity implements View.OnCli
     private void presentShowcaseView(int withDelay) {
         new MaterialShowcaseView.Builder(this)
                 .setTarget(mButtonShow)
-                .setCustomView(R.layout.custom_layout)
+
                 .setTitleText("Hello")
                 .setDismissText("GOT IT")
-                .setShape(new OvalShape())
+                .withRectangleShape(false)
                 .setContentText("This is some amazing feature you should know about")
                 .setDelay(withDelay) // optional but starting animations immediately in onCreate can make them choppy
                 .singleUse(SHOWCASE_ID) // provide a unique ID used to ensure it is only shown once

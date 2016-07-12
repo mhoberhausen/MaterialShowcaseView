@@ -280,15 +280,11 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
             Rect targetBounds = mTarget.getBounds();
             setPosition(targetPoint);
 
-
-
             int radius = Math.max(targetBounds.height(), targetBounds.width()) / 2;
             if (mShape != null) {
                 mShape.updateTarget(mTarget);
                 radius = mShape.getHeight() / 2;
             }
-
-
 
             if(getContext().getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE){
                 // now figure out whether to put content above or below it
@@ -296,36 +292,68 @@ public class MaterialShowcaseView extends FrameLayout implements View.OnTouchLis
                 int midPoint = width / 2;
                 int xPos = targetPoint.x;
 
-                if (xPos > midPoint) {
-                    // target is in right half of screen, we'll sit above it
-                    mContentLeftMargin = 0;
-                    mContentTopMargin = 0;
-                    mContentRightMargin = (width - xPos) + radius + mShapePadding;
-                    mGravity = Gravity.START | Gravity.TOP;
-                } else {
-                    // target is in left half of screen, we'll sit below it
-                    mContentLeftMargin = xPos + radius + mShapePadding;
-                    mContentRightMargin = 0;
-                    mContentTopMargin = 0;
-                    mGravity = Gravity.START | Gravity.TOP;
+                boolean canContinue = true;
+                if(mShape != null){
+                    int result = width - mShape.getWidth();
+
+                    if(result < 300){
+                        canContinue = false;
+                    }
                 }
-            }else{
-                // now figure out whether to put content above or below it
-                int height = getMeasuredHeight();
-                int midPoint = height / 2;
-                int yPos = targetPoint.y;
+
+                if(canContinue){
+                    if (xPos > midPoint) {
+                        // target is in right half of screen, we'll sit above it
+                        mContentRightMargin = 0;
+                        mContentLeftMargin = (width - xPos) + radius + mShapePadding;
+                        mGravity = Gravity.START;
+                    } else {
+                        // target is in left half of screen, we'll sit below it
+                        if(mShape != null){
+                            mContentLeftMargin = xPos + mShape.getWidth() / 2;
+                        }else{
+                            mContentLeftMargin = xPos + radius + mShapePadding;
+                        }
+                        mContentRightMargin = 0;
+                        mGravity = Gravity.START;
+                    }
+                }
+            }
+
+            // now figure out whether to put content above or below it
+            int height = getMeasuredHeight();
+            int midPoint = height / 2;
+            int yPos = targetPoint.y;
+
+            boolean canProceed = true;
+
+            if(mShape != null){
+                int result = height - mShape.getHeight();
+                if(result < 500){
+                    canProceed = false;
+                }
+            }else if(height - mTarget.getBounds().height() < 300){
+                canProceed = false;
+            }
+            if (canProceed) {
                 if (yPos > midPoint) {
                     // target is in lower half of screen, we'll sit above it
                     mContentTopMargin = 0;
                     mContentBottomMargin = (height - yPos) + radius + mShapePadding;
-                    mGravity = Gravity.BOTTOM;
+                    mGravity = Gravity.BOTTOM | mGravity;
                 } else {
                     // target is in upper half of screen, we'll sit below it
                     mContentTopMargin = yPos + radius + mShapePadding;
                     mContentBottomMargin = 0;
-                    mGravity = Gravity.TOP;
+                    mGravity = Gravity.TOP | mGravity;
                 }
+            }else{
+                mGravity = Gravity.TOP;
+                mContentTopMargin = 10;
+                mContentBottomMargin = 0;
             }
+
+
         }
 
         applyLayoutParams();
